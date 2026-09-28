@@ -1,8 +1,9 @@
-"""LLM presenter on top of FACTS + analysis_payload.
+"""LLM presenter on top of AUTHORITATIVE FACTS + analysis_payload.
 
-The model never runs Monte Carlo and never invents probabilities.
+Monte Carlo is the only source of numbers. Qwen is a press secretary.
 Default backend is 'facts' (no weight download).
-Transformers / OpenAI-compatible backends are opt-in for Colab.
+`--analyst-backend qwen` is opt-in (Colab / transformers).
+HF token is read from env or Colab secret only and is never printed.
 """
 
 from __future__ import annotations
@@ -12,48 +13,59 @@ from typing import Mapping
 
 from assumptions import DISCLAIMER
 from facts import facts_block, present_without_llm
+from fidelity import attach_fidelity_footer, check_numeric_fidelity
+from hf_session import huggingface_from_pretrained_kwargs, token_status
 
-SYSTEM_BOARD = """Ты аналитический слой NULLXES MAGA ORACLE (BOARD MODE).
-
-Ты НЕ изменяешь результаты Monte Carlo.
-Ты НЕ придумываешь вероятности.
-Ты НЕ выдаёшь assumptions за факты.
-Ты НЕ прогнозируешь реальные политические, военные или экономические события.
-
-Тебе дан блок FACTS и JSON. Используй ТОЛЬКО числа из них.
-Если поля нет — пиши «данных недостаточно».
-
-Структура ответа:
-1. Главный результат (survival, cash breach, C90, ES5).
-2. Ключевые причины риска по FACTS (runway, checkpoint, realized deal/bank).
-3. Какие параметры сильнее всего влияют на survival (sensitivity_top).
-4. Escape solver (bridge / max burn) или «данных недостаточно».
-5. Сравнение политик только по данным симуляции.
-6. Явно раздели: known inputs / assumptions / simulation outputs.
-
-Язык: сухой CFO/CEO, русский, без метафор.
-В конце одна строка дисклеймера из JSON.disclaimer."""
-
-SYSTEM_MAGA = """Ты аналитический слой NULLXES MAGA ORACLE (MAGA MODE).
+SYSTEM_SHARED = """Ты аналитический слой NULLXES MAGA ORACLE.
 
 Ты НЕ изменяешь результаты Monte Carlo.
+Ты НЕ пересчитываешь survival, ES, bridge, вероятности и ranking политик.
 Ты НЕ придумываешь вероятности.
-Ты НЕ выдаёшь assumptions за факты.
+Ты НЕ выдаёшь ASSUMPTION / PLACEHOLDER за факты.
 Ты НЕ прогнозируешь реальные политические, военные или экономические события.
 
-Тебе дан блок FACTS и JSON. Используй ТОЛЬКО числа из них.
-Если поля нет — пиши «данных недостаточно».
+Источник истины — блок AUTHORITATIVE FACTS. Копируй эти числа дословно.
+Если поля нет или написано «данных недостаточно» — так и пиши.
+Каждый ASSUMPTION, который упоминаешь, помечай словами ASSUMPTION / PLACEHOLDER.
+"""
 
-Структура ответа:
-1. Одна жёсткая фраза главного результата + AI label из JSON.
-2. Где именно ломается касса (runway vs bank checkpoint vs deal fail) — по FACTS.
-3. Sensitivity: что сильнее двигает P(SURVIVAL).
-4. Escape solver: сколько моста/какой burn для целевого survival, если числа есть.
-5. Политики: кто лучше на тех же мирах, в п.п., без советов «как жить».
-6. Known vs ASSUMPTION vs OUTPUT — явно.
+SYSTEM_BOARD = (
+    SYSTEM_SHARED
+    + """
+Режим BOARD: сухой CFO/CEO, русский, без метафор.
 
-Можно быть человеческим, но каждое число — из FACTS/JSON.
-В конце дисклеймер из JSON.disclaimer."""
+Структура:
+1. Главный результат (survival, cash breach, C90, ES5) — числа из FACTS.
+2. Ключевые причины риска по FACTS (runway, checkpoint, deal/bank realized).
+3. Sensitivity top — только из FACTS.
+4. Escape solver или «данных недостаточно».
+5. Политики только по данным симуляции.
+6. Явно: known inputs / ASSUMPTION / simulation outputs.
+
+В конце одна строка дисклеймера из JSON.disclaimer.
+"""
+)
+
+SYSTEM_MAGA = (
+    SYSTEM_SHARED
+    + """
+Режим MAGA: человеческий тон, но каждое число — из AUTHORITATIVE FACTS.
+
+Структура:
+1. Жёсткая фраза результата + AI label из FACTS.
+2. Где ломается касса (runway vs checkpoint vs deal) — по FACTS.
+3. Sensitivity.
+4. Escape solver, если числа есть.
+5. Политики в п.п., без жизненных советов.
+6. Known vs ASSUMPTION / PLACEHOLDER vs OUTPUT.
+
+В конце дисклеймер из JSON.disclaimer.
+"""
+)
+
+_FACTS_BACKENDS = {"facts", "none", "off", "rule"}
+_QWEN_BACKENDS = {"qwen", "transformers", "hf", "local"}
+_API_BACKENDS = {"openai", "openai_compat", "api"}
 
 
 def build_messages(
@@ -62,15 +74,14 @@ def build_messages(
     delta: Mapping | None = None,
 ) -> list[dict[str, str]]:
     system = SYSTEM_MAGA if mode == "maga" else SYSTEM_BOARD
-    user = (
-        facts_block(payload, delta)
-        + "\n\nJSON\n"
-        + json.dumps(payload, ensure_ascii=False, default=str)
-    )
+    user = facts_block(payload, delta)
+    user += "\n\nJSON (context only; if it conflicts with AUTHORITATIVE FACTS, FACTS win)\n"
+    user += json.dumps(payload, ensure_ascii=False, default=str)
     if delta:
         user += "\n\nDELTA_JSON\n" + json.dumps(delta, ensure_ascii=False, default=str)
     user += (
-        "\n\nНапиши briefing строго по FACTS. Не добавляй вероятности, которых нет в FACTS."
+        "\n\nНапиши briefing. Не добавляй вероятности, которых нет в AUTHORITATIVE FACTS. "
+        "Не округляй вероятность так, чтобы получилось другое число."
     )
     return [
         {"role": "system", "content": system},
@@ -86,32 +97,41 @@ def generate_briefing(
     model_id: str = "Qwen/Qwen3-1.7B",
     max_new_tokens: int = 700,
 ) -> dict:
-    """Return {mode, backend, model_id, text, used_llm}."""
     mode = "maga" if mode == "maga" else "board"
     backend = (backend or "facts").lower()
-    if backend in {"facts", "none", "off", "rule"}:
+    if backend in _FACTS_BACKENDS:
         text = present_without_llm(payload, mode=mode, delta=delta)
+        rail = check_numeric_fidelity(text, payload, delta)
+        text = attach_fidelity_footer(text, rail)
         return {
             "mode": mode,
             "backend": "facts",
             "model_id": None,
             "used_llm": False,
+            "hf_token": token_status(),
+            "fidelity": rail,
             "text": text,
             "disclaimer": DISCLAIMER,
         }
     messages = build_messages(payload, mode=mode, delta=delta)
-    if backend in {"transformers", "hf", "local"}:
+    if backend in _QWEN_BACKENDS:
         text = _generate_transformers(messages, model_id, max_new_tokens)
-    elif backend in {"openai", "openai_compat", "api"}:
+        backend_name = "qwen"
+    elif backend in _API_BACKENDS:
         text = _generate_openai_compat(messages, model_id, max_new_tokens)
+        backend_name = "openai"
     else:
         raise ValueError(f"unknown analyst backend: {backend}")
+    rail = check_numeric_fidelity(text, payload, delta)
+    text = attach_fidelity_footer(text.strip(), rail)
     return {
         "mode": mode,
-        "backend": backend,
+        "backend": backend_name,
         "model_id": model_id,
         "used_llm": True,
-        "text": text.strip(),
+        "hf_token": token_status(),
+        "fidelity": rail,
+        "text": text,
         "disclaimer": DISCLAIMER,
     }
 
@@ -120,11 +140,13 @@ def _generate_transformers(messages: list[dict], model_id: str, max_new_tokens: 
     from transformers import AutoModelForCausalLM, AutoTokenizer
     import torch
 
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    tok_kwargs = huggingface_from_pretrained_kwargs()
+    tokenizer = AutoTokenizer.from_pretrained(model_id, **tok_kwargs)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype="auto",
         device_map="auto",
+        **tok_kwargs,
     )
     kwargs = {"tokenize": False, "add_generation_prompt": True}
     try:
@@ -134,31 +156,31 @@ def _generate_transformers(messages: list[dict], model_id: str, max_new_tokens: 
     except TypeError:
         prompt = tokenizer.apply_chat_template(messages, **kwargs)
     inputs = tokenizer([prompt], return_tensors="pt").to(model.device)
+    gen_kwargs = {
+        "max_new_tokens": int(max_new_tokens),
+        "do_sample": False,
+    }
+    if tokenizer.pad_token_id is not None:
+        gen_kwargs["pad_token_id"] = tokenizer.pad_token_id
     with torch.no_grad():
-        out = model.generate(
-            **inputs,
-            max_new_tokens=int(max_new_tokens),
-            do_sample=False,
-        )
+        out = model.generate(**inputs, **gen_kwargs)
     gen = out[0][inputs["input_ids"].shape[1] :]
     return tokenizer.decode(gen, skip_special_tokens=True)
 
 
 def _generate_openai_compat(messages: list[dict], model_id: str, max_new_tokens: int) -> str:
-    """HF router / OpenAI-compatible endpoint. Requires env:
-
-    OPENAI_BASE_URL  e.g. https://router.huggingface.co/v1
-    OPENAI_API_KEY   or HF_TOKEN
-    """
+    """OpenAI-compatible endpoint. Token from env/Colab secret only."""
     import os
     from urllib.request import Request, urlopen
 
+    from hf_session import session_hf_token
+
     base = os.environ.get("OPENAI_BASE_URL") or os.environ.get("HF_OPENAI_BASE_URL")
-    key = os.environ.get("OPENAI_API_KEY") or os.environ.get("HF_TOKEN")
+    key = os.environ.get("OPENAI_API_KEY") or session_hf_token()
     if not base or not key:
         raise RuntimeError(
-            "openai backend needs OPENAI_BASE_URL and OPENAI_API_KEY or HF_TOKEN; "
-            "weights are not downloaded locally."
+            "openai backend needs OPENAI_BASE_URL and a session token "
+            "(OPENAI_API_KEY or HF_TOKEN / Colab secret). Token is not logged."
         )
     body = json.dumps(
         {

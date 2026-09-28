@@ -145,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--skip-solver", action="store_true")
     p.add_argument("--skip-excel", action="store_true")
     p.add_argument("--policy-view", default="HOLD", help="Primary policy in analysis_payload.json")
-    p.add_argument("--analyst-backend", default="facts", help="facts | transformers | openai")
+    p.add_argument("--analyst-backend", default="facts", help="facts | qwen | openai")
     p.add_argument("--analyst-mode", default="maga", help="board | maga")
     p.add_argument("--analyst-model", default="Qwen/Qwen3-1.7B")
     p.add_argument("--delta-json", default=None, help="Optional other analysis_payload.json for delta")
@@ -391,9 +391,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     brief_path = ROOT / "outputs" / "QWEN_BRIEFING.md"
     brief_path.write_text(analyst["text"] + "\n", encoding="utf-8")
+    write_json(
+        {
+            "backend": analyst["backend"],
+            "mode": analyst["mode"],
+            "model_id": analyst["model_id"],
+            "used_llm": analyst["used_llm"],
+            "hf_token": analyst["hf_token"],
+            "fidelity": analyst["fidelity"],
+        },
+        ROOT / "outputs" / "simulations" / "analyst_meta.json",
+    )
     print(f"\n--- ANALYST ({analyst['backend']} / {analyst['mode']}) ---")
     print(analyst["text"])
     print(f"Wrote {brief_path}")
+    print(
+        f"fidelity={'OK' if analyst['fidelity']['ok'] else 'FAIL'}  "
+        f"hf_token={analyst['hf_token']}"
+    )
     print("\n" + DISCLAIMER)
     return 0
 

@@ -154,6 +154,10 @@ USER INPUT → config/UI → Monte Carlo → analysis_payload.json
 
 Qwen **не считает** survival. Default `--analyst-backend facts` (веса не качаются).
 
+`--analyst-backend qwen` грузит `Qwen/Qwen3-1.7B` (opt-in). Токен только из `HF_TOKEN` env / Colab Secret. Никогда не коммитить и не `print`.
+
+После briefing Python проверяет, не подменил ли Qwen labeled metrics (`[FIDELITY RAIL]`).
+
 Hub IDs (Colab opt-in, не локально):
 
 - `Qwen/Qwen3-1.7B` — старт (post-trained, `enable_thinking=False`)
@@ -166,6 +170,13 @@ Hub IDs (Colab opt-in, не локально):
 ```bash
 python run.py --worlds 1000 --skip-solver --analyst-backend facts --analyst-mode maga
 python app_gradio.py
+```
+
+Colab, после `analysis_payload.json`:
+
+```bash
+python scripts/run_qwen_briefing.py --model Qwen/Qwen3-1.7B
+python scripts/compare_qwen_models.py --payload outputs/simulations/analysis_payload.json
 ```
 
 `--delta-json other_payload.json` — сравнение сценариев без выдуманных вероятностей.

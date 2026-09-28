@@ -115,6 +115,7 @@ def run_panel(
                 "[LLM выключен: backend=facts. Подключи HF/API в Colab, чтобы грузить Qwen.]\n\n"
                 + qwen_text
             )
+        (ROOT / "outputs" / "QWEN_BRIEFING.md").write_text(qwen_text + "\n", encoding="utf-8")
     except Exception as e:
         qwen_text = present_without_llm(payload, mode=analyst_mode) + f"\n\n[LLM error: {e}]"
 
@@ -151,7 +152,7 @@ def build_ui():
                 )
                 mode = gr.Radio(["board", "maga"], value="maga", label="Presenter")
                 backend = gr.Dropdown(
-                    ["facts", "transformers", "openai"],
+                    ["facts", "qwen", "openai"],
                     value="facts",
                     label="Analyst backend (facts = no download)",
                 )

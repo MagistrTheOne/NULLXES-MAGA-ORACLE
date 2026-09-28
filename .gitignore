@@ -9,6 +9,12 @@ outputs/simulations/*.json
 outputs/*.xlsx
 outputs/PIZDEC_BRIEFING.md
 outputs/QWEN_BRIEFING.md
+.env
+.env.*
+.huggingface/
+*.token
+outputs/simulations/*.md
 .DS_Store
+
 *.zip
 NULLXES-MAGA-ORACLE.zip

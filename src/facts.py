@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Mapping
 
+from fidelity import authoritative_facts_block
+
 
 def _fmt_pct(x) -> str:
     if x is None:
@@ -93,7 +95,11 @@ def extract_facts(payload: Mapping, delta: Mapping | None = None) -> list[str]:
 
 
 def facts_block(payload: Mapping, delta: Mapping | None = None) -> str:
-    return "FACTS\n" + "\n".join(f"- {line}" for line in extract_facts(payload, delta))
+    return (
+        authoritative_facts_block(payload, delta)
+        + "\n\nFACTS\n"
+        + "\n".join(f"- {line}" for line in extract_facts(payload, delta))
+    )
 
 
 def present_without_llm(payload: Mapping, mode: str = "board", delta: Mapping | None = None) -> str:
