@@ -64,6 +64,22 @@ CLIFF строки копируй дословно.
 """
 )
 
+SYSTEM_FRONTIER = (
+    SYSTEM_SHARED
+    + """
+Режим SURVIVAL FRONTIER: Cash0 × Burn. Числа только из AUTHORITATIVE FACTS.
+
+Ответь:
+1. При каких burn на этой сетке dead_zone (никакая политика не спасает).
+2. Для каждого burn минимальный Cash0 с best P(SURVIVAL) ≥ 50% и ≥ 80%.
+3. Где HOLD мёртв, а best policy ещё жива — копируй best_policy и best_minus_HOLD_pp.
+4. BRIDGE@80% по клеткам; infeasible так и пиши.
+5. Арифметика runway vs interaction.
+
+Не интерполируй. Пропуск = «данных недостаточно».
+"""
+)
+
 SYSTEM_MAGA = (
     SYSTEM_SHARED
     + """
@@ -96,6 +112,11 @@ def build_messages(
 
         system = SYSTEM_SWEEP
         user = authoritative_sweep_block(sweep_view_from_payload(payload))
+    elif payload.get("experiment") == "frontier_sweep":
+        from frontier_sweep import authoritative_frontier_block, frontier_view_from_payload
+
+        system = SYSTEM_FRONTIER
+        user = authoritative_frontier_block(frontier_view_from_payload(payload))
     else:
         system = SYSTEM_MAGA if mode == "maga" else SYSTEM_BOARD
         user = facts_block(payload, delta)
@@ -123,13 +144,17 @@ def generate_briefing(
 ) -> dict:
     mode = "maga" if mode == "maga" else "board"
     backend = (backend or "facts").lower()
-    if payload.get("experiment") == "cash_sweep" and max_new_tokens <= 700:
+    if payload.get("experiment") in {"cash_sweep", "frontier_sweep"} and max_new_tokens <= 700:
         max_new_tokens = 1400
     if backend in _FACTS_BACKENDS:
         if payload.get("experiment") == "cash_sweep":
             from cash_sweep import sweep_presenter, sweep_view_from_payload
 
             text = sweep_presenter(sweep_view_from_payload(payload), mode=mode)
+        elif payload.get("experiment") == "frontier_sweep":
+            from frontier_sweep import frontier_presenter, frontier_view_from_payload
+
+            text = frontier_presenter(frontier_view_from_payload(payload), mode=mode)
         else:
             text = present_without_llm(payload, mode=mode, delta=delta)
         rail = check_numeric_fidelity(text, payload, delta)

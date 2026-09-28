@@ -194,6 +194,17 @@ python scripts/run_cash_sweep.py --worlds 1000 --analyst-backend qwen
 
 Графики: `outputs/charts/cash0_survival.png`, `outputs/charts/cash0_breach.png`.
 
+## Survival frontier — Cash0 × Burn
+
+Один seed. Меняются только `cash_initial` и `burn_monthly`. В клетке: HOLD / best policy / `bridge_for_80`.
+
+```bash
+python run.py --frontier-sweep --worlds 1000 --skip-tests --analyst-backend facts
+python scripts/run_frontier_sweep.py --from-payload outputs/simulations/frontier_sweep_payload.json --analyst-backend qwen
+```
+
+Heatmaps: `outputs/charts/frontier_best_survival.png`, `frontier_hold_survival.png`, `frontier_bridge_80.png`.
+
 ## GPU
 
 Monte Carlo GPU не использует. Qwen на Colab — только если вы сами включите transformers.

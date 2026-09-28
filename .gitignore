@@ -11,6 +11,8 @@ outputs/PIZDEC_BRIEFING.md
 outputs/QWEN_BRIEFING.md
 outputs/CASH_SWEEP_BRIEFING.md
 outputs/CASH_SWEEP_QWEN.md
+outputs/FRONTIER_SWEEP_BRIEFING.md
+outputs/FRONTIER_SWEEP_QWEN.md
 .env
 .env.*
 .huggingface/

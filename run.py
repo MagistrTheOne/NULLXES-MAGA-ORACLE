@@ -150,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--analyst-model", default="Qwen/Qwen3-1.7B")
     p.add_argument("--delta-json", default=None, help="Optional other analysis_payload.json for delta")
     p.add_argument("--cash-sweep", action="store_true", help="Cash0 grid on CRN; only cash_initial changes")
+    p.add_argument("--frontier-sweep", action="store_true", help="Cash0 × Burn survival frontier on CRN")
     p.add_argument("--out", default="outputs/NULLXES_90D_ORACLE.xlsx")
     args = p.parse_args(argv)
 
@@ -243,6 +244,54 @@ def main(argv: list[str] | None = None) -> int:
             max_new_tokens=tokens,
         )
         qpath = ROOT / "outputs" / "CASH_SWEEP_QWEN.md"
+        qpath.write_text(analyst["text"] + "\n", encoding="utf-8")
+        (ROOT / "outputs" / "QWEN_BRIEFING.md").write_text(analyst["text"] + "\n", encoding="utf-8")
+        print(f"\n--- ANALYST ({analyst['backend']} / {analyst['mode']}) ---")
+        print(analyst["text"])
+        print(f"Wrote {arts['brief_path']} and {qpath}")
+        print(
+            f"fidelity={'OK' if analyst['fidelity']['ok'] else 'FAIL'}  "
+            f"hf_token={analyst['hf_token']}"
+        )
+        print("\n" + DISCLAIMER)
+        return 0
+
+    if args.frontier_sweep:
+        from frontier_sweep import run_frontier_sweep, write_frontier_outputs
+
+        n = int(args.worlds if args.worlds is not None else cfg["simulation"]["worlds"])
+        print(f"\nFrontier Cash0×Burn on CRN  worlds={n}  seed={cfg['simulation']['seed']}")
+        sweep = run_frontier_sweep(
+            cfg,
+            n_worlds=n,
+            seed=int(cfg["simulation"]["seed"]),
+            overlay=overlay,
+            live_events=live_events,
+        )
+        arts = write_frontier_outputs(sweep, ROOT, mode=args.analyst_mode)
+        for c in sweep["cells"]:
+            br = c["bridge_for_80"]
+            btxt = (
+                f"{br['value']:,.0f}"
+                if br.get("feasible")
+                else ("infeasible" if br.get("feasible") is False else "n/a")
+            )
+            print(
+                f"  {c['id']:16s}  HOLD={c['HOLD_P(SURVIVAL)']:.1%}  "
+                f"best={c['best_policy']:14s} {c['best_P(SURVIVAL)']:.1%}  "
+                f"bridge80={btxt}  {c['band']}"
+            )
+        print("Frontier:", json.dumps(sweep["frontier"], ensure_ascii=False, default=str))
+        print("Charts:", {k: str(v) for k, v in arts["charts"].items()})
+        tokens = 1400 if args.analyst_backend.lower() in {"qwen", "transformers", "hf"} else 700
+        analyst = generate_briefing(
+            arts["payload"],
+            mode=args.analyst_mode,
+            backend=args.analyst_backend,
+            model_id=args.analyst_model,
+            max_new_tokens=tokens,
+        )
+        qpath = ROOT / "outputs" / "FRONTIER_SWEEP_QWEN.md"
         qpath.write_text(analyst["text"] + "\n", encoding="utf-8")
         (ROOT / "outputs" / "QWEN_BRIEFING.md").write_text(analyst["text"] + "\n", encoding="utf-8")
         print(f"\n--- ANALYST ({analyst['backend']} / {analyst['mode']}) ---")

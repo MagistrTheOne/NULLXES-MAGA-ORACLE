@@ -130,6 +130,8 @@ def check_numeric_fidelity(text: str, payload: Mapping, delta: Mapping | None = 
     """If the briefing quotes a labeled metric, it must match Monte Carlo."""
     if payload.get("experiment") == "cash_sweep":
         return _check_sweep_fidelity(text, payload)
+    if payload.get("experiment") == "frontier_sweep":
+        return _check_frontier_fidelity(text, payload)
     expected = authoritative_map(payload, delta)
     issues: list[str] = []
     for label, pat in _LABEL_PATTERNS:
@@ -184,6 +186,38 @@ def _check_sweep_fidelity(text: str, payload: Mapping) -> dict:
                 issues.append(
                     f"{name} P(CASH BREACH): quoted {m.group(1).strip()} != {exp_b}"
                 )
+    return {"ok": len(issues) == 0, "issues": issues, "checked_labels": checked}
+
+
+def _check_frontier_fidelity(text: str, payload: Mapping) -> dict:
+    cells = ((payload.get("frontier_sweep") or {}).get("cells")) or []
+    issues: list[str] = []
+    checked: list[str] = []
+    for cell in cells:
+        name = cell.get("id") or ""
+        exp = cell.get("BEST P(SURVIVAL)") or cell.get("best_P(SURVIVAL)")
+        if exp is None:
+            continue
+        label = f"{name} BEST P(SURVIVAL)"
+        checked.append(label)
+        pat = rf"{re.escape(name)}[\s\S]{{0,220}}BEST P\(\s*SURVIVAL\s*\)\s*[:=]\s*([+-]?\d[\d\s,.]*%?)"
+        for m in re.finditer(pat, text, flags=re.IGNORECASE):
+            got = _parse_quoted(m.group(1))
+            if got is None:
+                continue
+            if not _prob_close(got, float(exp)):
+                issues.append(f"{label}: quoted {m.group(1).strip()} != {exp}")
+        exp_h = cell.get("HOLD_P(SURVIVAL)")
+        if exp_h is None:
+            continue
+        checked.append(f"{name} HOLD P(SURVIVAL)")
+        pat_h = rf"{re.escape(name)}[\s\S]{{0,160}}HOLD P\(\s*SURVIVAL\s*\)\s*[:=]\s*([+-]?\d[\d\s,.]*%?)"
+        for m in re.finditer(pat_h, text, flags=re.IGNORECASE):
+            got = _parse_quoted(m.group(1))
+            if got is None:
+                continue
+            if not _prob_close(got, float(exp_h)):
+                issues.append(f"{name} HOLD P(SURVIVAL): quoted {m.group(1).strip()} != {exp_h}")
     return {"ok": len(issues) == 0, "issues": issues, "checked_labels": checked}
 
 
