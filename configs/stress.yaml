@@ -1,0 +1,87 @@
+# NULLXES 90-day Monte Carlo — STRESS overlay
+# Merged on top of baseline.yaml. Unknowns remain ASSUMPTION / PLACEHOLDER.
+
+extends: baseline.yaml
+
+meta:
+  name: stress
+
+simulation:
+  seed: 20260928
+
+bank:
+  approval_probability: 0.08          # ASSUMPTION / PLACEHOLDER
+  reduced_limit_probability: 0.55
+  decision_delay_distribution:
+    type: uniform_int
+    min_days: 10
+    max_days: 40
+
+deal:
+  close_probability: 0.04             # ASSUMPTION / PLACEHOLDER
+  failure_probability: 0.45
+  sanctions_block_probability: 0.18
+  legal_block_probability: 0.12
+  counterparty_failure_probability: 0.14
+  geo_fail_probability: 0.16
+  delay_distribution:
+    type: uniform_int
+    min_days: 21
+    max_days: 80
+
+hazards:
+  SEC:
+    p90: 0.40
+    beta: 0.55
+    theta: 10.0
+    exposure_rub: 70000.0
+    severity_median: 0.55
+    severity_sigma: 0.85
+  FIN:
+    p90: 0.45
+    beta: 0.60
+    theta: 18.0
+    exposure_rub: 50000.0
+    severity_median: 0.50
+    severity_sigma: 0.90
+  MACRO:
+    p90: 0.42
+    beta: 0.50
+    theta: 14.0
+    exposure_rub: 55000.0
+    severity_median: 0.48
+    severity_sigma: 0.80
+  GEO:
+    p90: 0.38
+    beta: 0.70
+    theta: 28.0
+    exposure_rub: 90000.0
+    severity_median: 0.65
+    severity_sigma: 1.00
+  BIZ:
+    p90: 0.40
+    beta: 0.40
+    theta: 10.0
+    exposure_rub: 60000.0
+    severity_median: 0.50
+    severity_sigma: 0.90
+  BLACK_SWAN:
+    p_daily: 0.006                    # ASSUMPTION / PLACEHOLDER
+    beta: 0.70
+    theta: 40.0
+    pareto_xmin: 150000.0
+    pareto_alpha: 1.45
+    exposure_rub: 1.0
+    severity_median: 1.0
+    severity_sigma: 0.0
+
+contagion:
+  rho: 0.92
+  sigma: 0.55
+  A:
+    SEC:        [0.10, 0.30, 0.45, 0.08, 0.35, 0.05]
+    FIN:        [0.08, 0.25, 0.22, 0.05, 0.28, 0.04]
+    MACRO:      [0.20, 0.35, 0.22, 0.12, 0.22, 0.05]
+    GEO:        [0.12, 0.40, 0.30, 0.22, 0.50, 0.08]
+    BIZ:        [0.05, 0.22, 0.12, 0.05, 0.22, 0.03]
+    BLACK_SWAN: [0.70, 0.70, 0.70, 0.55, 0.70, 0.35]

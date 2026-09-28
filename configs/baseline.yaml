@@ -1,0 +1,258 @@
+# NULLXES 90-day Monte Carlo — BASELINE
+# Все неизвестные величины помечены ASSUMPTION / PLACEHOLDER.
+# Это НЕ эмпирические частоты и НЕ прогноз.
+
+meta:
+  name: baseline
+  disclaimer: >
+    Результаты являются условными исходами модели при заданных допущениях
+    и не являются прогнозом реальных геополитических, военных или экономических событий.
+  model_date: "2026-09-28"
+  notes: "ASSUMPTION / PLACEHOLDER catalog is expanded in src/assumptions.py"
+
+simulation:
+  worlds: 100000
+  days: 90
+  seed: 20260928
+  start_date: "2026-09-28"
+  dtype: float64
+  shock_severity_multiplier: 1.0      # global severity scale (sensitivity lever)
+  # GPU is NOT used in baseline. 1e5 x 90 is a small NumPy workload on CPU.
+
+company:
+  name: NULLXES
+  status: "CEO / Founder"
+  sector: "DeepTech / R&D"
+  cash_initial: 500.0          # known
+  cash_minimum: 0.0            # ASSUMPTION / PLACEHOLDER (Cmin)
+  # Monthly operating burn. UNKNOWN in reality. Editable. Sensitivity-swept.
+  burn_monthly: 200000.0       # ASSUMPTION / PLACEHOLDER (RUB / month)
+  days_per_month: 30.0         # ASSUMPTION: 30-day month for daily burn conversion
+  discretionary_rd_share: 0.70 # ASSUMPTION / PLACEHOLDER: share of burn that FREEZE can cut
+  founder_external_income_daily: 0.0  # known: 0
+  external_liquidity: 0.0             # known: 0
+  bank_funding_available_now: 0.0     # known: 0 until checkpoint
+  bridge_capital: 0.0                 # optional t=0 additive cash (escape lever)
+
+bank:
+  checkpoint_date: "2026-10-26"
+  allow_pre_checkpoint_decision: false
+  # P(approve | decision occurs). NOT automatic after 26.10.
+  approval_probability: 0.22          # ASSUMPTION / PLACEHOLDER
+  reduced_limit_probability: 0.35     # ASSUMPTION / PLACEHOLDER
+  reduced_limit_factor: 0.40          # ASSUMPTION / PLACEHOLDER
+  # Extra decline pressure per FIN event before decision (multiplicative on odds).
+  fin_stress_approval_decay: 0.18     # ASSUMPTION / PLACEHOLDER
+  fin_event_extra_delay_days: 3       # ASSUMPTION / PLACEHOLDER
+  fin_event_delay_probability: 0.40   # ASSUMPTION / PLACEHOLDER
+  decision_delay_distribution:
+    type: uniform_int
+    min_days: 3                       # ASSUMPTION / PLACEHOLDER
+    max_days: 21                      # ASSUMPTION / PLACEHOLDER
+  limit_distribution:
+    type: lognormal
+    median: 2500000.0                 # ASSUMPTION / PLACEHOLDER (RUB)
+    sigma: 0.70                       # ASSUMPTION / PLACEHOLDER
+  financing_cost:
+    annual_rate: 0.28                 # ASSUMPTION / PLACEHOLDER
+  # If true, a world can receive bank inflow more than once (default false).
+  allow_repeat_draw: false
+
+deal:
+  target_capital: 30000000.0          # target working capital, NOT received
+  close_probability: 0.12             # ASSUMPTION / PLACEHOLDER  P(close path | no block)
+  failure_probability: 0.28           # ASSUMPTION / PLACEHOLDER
+  sanctions_block_probability: 0.08   # ASSUMPTION / PLACEHOLDER
+  legal_block_probability: 0.06       # ASSUMPTION / PLACEHOLDER
+  counterparty_failure_probability: 0.07  # ASSUMPTION / PLACEHOLDER
+  allow_recovery_after_failure: false
+  geo_delay_probability: 0.35         # ASSUMPTION / PLACEHOLDER  P(add delay | GEO event, pending)
+  geo_extra_delay_days: 5             # ASSUMPTION / PLACEHOLDER
+  geo_fail_probability: 0.08          # ASSUMPTION / PLACEHOLDER  P(fail | GEO event, pending)
+  delay_distribution:
+    type: uniform_int
+    min_days: 7                       # ASSUMPTION / PLACEHOLDER
+    max_days: 60                      # ASSUMPTION / PLACEHOLDER
+  tranches:
+    enabled: true
+    schedule:
+      - offset_days: 0
+        fraction: 0.40                # ASSUMPTION / PLACEHOLDER
+      - offset_days: 21
+        fraction: 0.60                # ASSUMPTION / PLACEHOLDER
+
+contract:
+  # No predictable cash-flow. Default inflow is 0.
+  daily_inflow: 0.0                   # ASSUMPTION / PLACEHOLDER
+  interrupted_by_sec: true
+  interrupted_by_geo: true
+  unexpected_contract_probability_per_biz_event: 0.15  # ASSUMPTION / PLACEHOLDER
+  unexpected_contract_median: 150000.0                 # ASSUMPTION / PLACEHOLDER
+  unexpected_contract_sigma: 0.80                      # ASSUMPTION / PLACEHOLDER
+
+revenue:
+  # No stable revenue. Residual unexpected BIZ inflows only.
+  unexpected_revenue_probability_per_biz_event: 0.10   # ASSUMPTION / PLACEHOLDER
+  unexpected_revenue_median: 25000.0                   # ASSUMPTION / PLACEHOLDER
+  unexpected_revenue_sigma: 1.00                       # ASSUMPTION / PLACEHOLDER
+
+hazards:
+  # P90_k = P(at least one event in 90 days) under BASE intensity
+  # (Z=0, no contagion). ASSUMPTION / PLACEHOLDER — not historical frequencies.
+  SEC:
+    p90: 0.18                         # ASSUMPTION / PLACEHOLDER
+    beta: 0.35                        # ASSUMPTION / PLACEHOLDER
+    theta: 7.0                        # ASSUMPTION / PLACEHOLDER (decay days)
+    exposure_rub: 40000.0             # ASSUMPTION / PLACEHOLDER
+    severity_median: 0.35             # ASSUMPTION / PLACEHOLDER (multiplier on exposure)
+    severity_sigma: 0.65              # ASSUMPTION / PLACEHOLDER
+  FIN:
+    p90: 0.22                         # ASSUMPTION / PLACEHOLDER
+    beta: 0.40
+    theta: 14.0
+    exposure_rub: 25000.0
+    severity_median: 0.30
+    severity_sigma: 0.70
+  MACRO:
+    p90: 0.20                         # ASSUMPTION / PLACEHOLDER
+    beta: 0.30
+    theta: 10.0
+    exposure_rub: 30000.0
+    severity_median: 0.28
+    severity_sigma: 0.60
+  GEO:
+    p90: 0.16                         # ASSUMPTION / PLACEHOLDER
+    beta: 0.45
+    theta: 21.0
+    exposure_rub: 50000.0
+    severity_median: 0.40
+    severity_sigma: 0.80
+  BIZ:
+    p90: 0.25                         # ASSUMPTION / PLACEHOLDER
+    beta: 0.25
+    theta: 7.0
+    exposure_rub: 35000.0
+    severity_median: 0.32
+    severity_sigma: 0.75
+  BLACK_SWAN:
+    # Separate rare heavy-tail process. Daily probability, not a "mean severity".
+    p_daily: 0.0015                   # ASSUMPTION / PLACEHOLDER
+    beta: 0.50
+    theta: 30.0
+    # Pareto Type I on RUB loss given event. Mean is NOT a target metric.
+    pareto_xmin: 80000.0              # ASSUMPTION / PLACEHOLDER
+    pareto_alpha: 1.80                # ASSUMPTION / PLACEHOLDER  (alpha>1 so mean exists)
+    exposure_rub: 1.0                 # severity already in RUB
+    severity_median: 1.0
+    severity_sigma: 0.0
+
+macro_pass_through:
+  # Inflation / logistics pass-through into burn.
+  burn_kappa: 0.04                    # ASSUMPTION / PLACEHOLDER
+  burn_cum_sev_clip: 8.0
+
+contagion:
+  # A[from, to]: extra intensity on `to` from past events of `from`.
+  # ASSUMPTION / PLACEHOLDER — editable, not estimated.
+  categories: [SEC, FIN, MACRO, GEO, BIZ, BLACK_SWAN]
+  A:
+    SEC:        [0.00, 0.15, 0.25, 0.00, 0.20, 0.00]
+    FIN:        [0.00, 0.12, 0.10, 0.00, 0.15, 0.00]
+    MACRO:      [0.10, 0.20, 0.10, 0.05, 0.10, 0.00]
+    GEO:        [0.05, 0.25, 0.15, 0.10, 0.30, 0.00]
+    BIZ:        [0.00, 0.10, 0.05, 0.00, 0.10, 0.00]
+    BLACK_SWAN: [0.40, 0.40, 0.40, 0.30, 0.40, 0.20]
+  rho: 0.85                           # ASSUMPTION / PLACEHOLDER  AR(1) latent
+  sigma: 0.35                         # ASSUMPTION / PLACEHOLDER
+
+outcomes:
+  # Formal class thresholds. ASSUMPTION / PLACEHOLDER.
+  material_financing_rub: 100000.0    # inflow that counts as "got financing"
+  trap_runway_days: 21.0              # survived but still trapped if runway below this
+  escape_runway_days: 45.0
+  major_shock_loss_rub: 20000.0       # ASSUMPTION / PLACEHOLDER
+  crisis_excitation_threshold: 0.10
+
+absurdity:
+  # score = sum_k w_k * ActiveSeverity_k + gamma * n_active_crises
+  # AI = 100 * F_baseline(score) with F(s) = empirical P(S < s) on baseline daily scores.
+  weights:
+    SEC: 1.00
+    FIN: 1.20
+    MACRO: 1.00
+    GEO: 1.50
+    BIZ: 0.80
+    BLACK_SWAN: 3.00
+  gamma: 0.55                         # ASSUMPTION / PLACEHOLDER
+  bands:
+    - {lo: 0.0,  hi: 20.0, label: "NORMAL"}
+    - {lo: 20.0, hi: 40.0, label: "🗿"}
+    - {lo: 40.0, hi: 60.0, label: "БЛЯДЬ"}
+    - {lo: 60.0, hi: 80.0, label: "КАКОГО ХУЯ"}
+    - {lo: 80.0, hi: 95.0, label: "MGS"}
+    - {lo: 95.0, hi: 100.01, label: "ПОНЕДЕЛЬНИК"}
+
+policies:
+  HOLD:
+    enabled: true
+    freeze_discretionary_fraction: 0.0
+    trigger: {}
+  FREEZE_50:
+    enabled: true
+    freeze_discretionary_fraction: 0.50
+    trigger:
+      cash_below: 80000.0             # ASSUMPTION / PLACEHOLDER
+      runway_days_below: 12.0         # ASSUMPTION / PLACEHOLDER
+      min_day: 0
+  FREEZE_90:
+    enabled: true
+    freeze_discretionary_fraction: 0.90
+    trigger:
+      cash_below: 40000.0             # ASSUMPTION / PLACEHOLDER
+      runway_days_below: 8.0
+      min_day: 0
+  CAPITAL_FIRST:
+    enabled: true
+    freeze_discretionary_fraction: 1.00
+    until_financing: true
+    trigger:
+      min_day: 0
+  EXIT_RU:
+    enabled: true
+    freeze_discretionary_fraction: 0.90
+    one_off_cost: 350000.0            # ASSUMPTION / PLACEHOLDER
+    post_exit_burn_factor: 0.55       # ASSUMPTION / PLACEHOLDER
+    trigger:
+      on_sanctions_block: true
+      on_legal_block: true
+      on_deal_fail_and_bank_decline: true
+      cash_below: 200.0               # ASSUMPTION / PLACEHOLDER
+      min_geo_events: 4               # ASSUMPTION / PLACEHOLDER
+      min_day: 0
+
+escape:
+  target_survival: 0.80
+  material_survival_lift: 0.05        # "substantially changes survival"
+  bridge_search_hi: 50000000.0
+  burn_search_hi: 5000000.0
+  contract_search_hi: 500000.0
+
+sensitivity:
+  # One-at-a-time vs baseline. Values are ABSOLUTE replacements unless marked as multiplier.
+  specs:
+    - {name: Burn, key: company.burn_monthly, mode: multiplier, low: 0.5, high: 2.0}
+    - {name: P(bank approval), key: bank.approval_probability, mode: absolute, low: 0.05, high: 0.50}
+    - {name: Bank decision delay, key: bank.decision_delay_distribution.max_days, mode: absolute, low: 7, high: 45}
+    - {name: Bank limit, key: bank.limit_distribution.median, mode: multiplier, low: 0.5, high: 2.0}
+    - {name: P(deal close), key: deal.close_probability, mode: absolute, low: 0.03, high: 0.40}
+    - {name: Deal delay, key: deal.delay_distribution.max_days, mode: absolute, low: 14, high: 80}
+    - {name: Deal capital, key: deal.target_capital, mode: multiplier, low: 0.5, high: 1.0}
+    - {name: Bridge capital, key: company.bridge_capital, mode: absolute, low: 0.0, high: 1000000.0}
+    - {name: Contract inflow, key: contract.daily_inflow, mode: absolute, low: 0.0, high: 25000.0}
+    - {name: FIN P90, key: hazards.FIN.p90, mode: absolute, low: 0.05, high: 0.45}
+    - {name: MACRO P90, key: hazards.MACRO.p90, mode: absolute, low: 0.05, high: 0.45}
+    - {name: GEO P90, key: hazards.GEO.p90, mode: absolute, low: 0.05, high: 0.40}
+    - {name: SEC P90, key: hazards.SEC.p90, mode: absolute, low: 0.05, high: 0.40}
+    - {name: Black Swan probability, key: hazards.BLACK_SWAN.p_daily, mode: absolute, low: 0.0002, high: 0.008}
+    - {name: Shock severity, key: simulation.shock_severity_multiplier, mode: absolute, low: 0.5, high: 2.0}
+    - {name: Freeze timing, key: policies.FREEZE_90.trigger.min_day, mode: absolute, low: 0, high: 45}

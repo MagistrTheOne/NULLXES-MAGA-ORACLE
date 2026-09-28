@@ -1,0 +1,10 @@
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+*.pyc
+.venv/
+venv/
+outputs/charts/*.png
+outputs/simulations/*.json
+outputs/*.xlsx
+.DS_Store
