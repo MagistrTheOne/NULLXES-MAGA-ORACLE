@@ -82,12 +82,11 @@ def simulate_hazards(
     severity_g: np.ndarray,
     pareto_u: np.ndarray,
     z: np.ndarray,
+    overlay=None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Vectorized across worlds; Python loop only over days.
 
-    Returns events (N,T,K) bool, severity (N,T,K) float, lambda (N,T,K) float.
-    Severity is 0 on non-event days. Ordinary cats: LogNormal multiplier.
-    BLACK_SWAN: Pareto RUB draw.
+    overlay: optional HazardOverlay (live events). None = no overlay.
     """
     n, t_days, k = event_u.shape
     assert z.shape == (n, t_days)
@@ -113,16 +112,26 @@ def simulate_hazards(
     lam_path = np.zeros((n, t_days, k), dtype=np.float64)
     exc = np.zeros((n, k), dtype=np.float64)
 
+    z_use = z
+    if overlay is not None and getattr(overlay, "z_add", None) is not None:
+        z_use = z + overlay.z_add[None, :]
+
     for t in range(t_days):
         boost = exc @ a
         scale = np.maximum(1.0 + boost, 0.0)
-        z_t = z[:, t][:, None]
+        z_t = z_use[:, t][:, None]
         lam = lam0[None, :] * np.exp(beta[None, :] * z_t) * scale
+        if overlay is not None:
+            lam = lam + overlay.lambda_add[t][None, :]
         np.maximum(lam, 0.0, out=lam)
         lam_path[:, t, :] = lam
         p = 1.0 - np.exp(-lam)
+        if overlay is not None:
+            p = p + overlay.p_boost[t][None, :]
         np.clip(p, 0.0, 1.0, out=p)
         ev = event_u[:, t, :] < p
+        if overlay is not None:
+            ev = ev | overlay.force_event[t][None, :]
         events[:, t, :] = ev
 
         sev = np.exp(log_med[None, :] + sig[None, :] * severity_g[:, t, :])

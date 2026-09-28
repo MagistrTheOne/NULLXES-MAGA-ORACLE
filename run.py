@@ -21,9 +21,16 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from assumptions import DISCLAIMER, load_config  # noqa: E402
+from assumptions import DISCLAIMER, deep_merge, load_config, load_yaml, set_path  # noqa: E402
+from briefing import build_briefing, generate_situation_charts, write_briefing_markdown  # noqa: E402
 from escape_solver import solve_escape  # noqa: E402
 from export_excel import write_workbook  # noqa: E402
+from live_events import (  # noqa: E402
+    apply_event_config_overrides,
+    collect_events,
+    overlay_from_events,
+    payload_hash,
+)
 from sensitivity import run_sensitivity, tornado_table  # noqa: E402
 from simulation import check_invariants, run_oracle  # noqa: E402
 
@@ -43,6 +50,30 @@ def _run_pytest() -> int:
         print("pytest not installed — running in-process invariants only.")
         return 0
     return pytest.main(["-q", str(ROOT / "tests")])
+
+
+def _coerce(raw: str):
+    s = str(raw).strip()
+    if s.lower() in {"true", "false"}:
+        return s.lower() == "true"
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    try:
+        return float(s)
+    except ValueError:
+        return s
+
+
+def _apply_sets(cfg: dict, items: list[str]) -> dict:
+    out = cfg
+    for item in items:
+        if "=" not in item:
+            raise SystemExit(f"--set expects key=value, got {item!r}")
+        key, val = item.split("=", 1)
+        out = set_path(out, key.strip(), _coerce(val))
+    return out
 
 
 def _print_metrics(tag: str, result) -> None:
@@ -95,8 +126,18 @@ def _print_metrics(tag: str, result) -> None:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="NULLXES 90-day Monte Carlo oracle")
     p.add_argument("--config", default="configs/baseline.yaml")
+    p.add_argument("--live-input", default=None, help="YAML overlay with editable run inputs")
+    p.add_argument("--set", dest="sets", action="append", default=[], help="dotted.key=value (repeatable)")
     p.add_argument("--worlds", type=int, default=None, help="Override simulation.worlds")
     p.add_argument("--seed", type=int, default=None)
+    p.add_argument("--burn", type=float, default=None, help="Override company.burn_monthly")
+    p.add_argument("--bridge", type=float, default=None, help="Override company.bridge_capital")
+    p.add_argument("--p-bank", type=float, default=None, help="Override bank.approval_probability")
+    p.add_argument("--p-deal", type=float, default=None, help="Override deal.close_probability")
+    p.add_argument("--cmin", type=float, default=None, help="Override company.cash_minimum")
+    p.add_argument("--events", default=None, help="Path to JSONL/YAML/JSON/CSV live events")
+    p.add_argument("--events-url", default=None, help="HTTP JSON/JSONL event feed")
+    p.add_argument("--events-text", default=None, help="Pasted headlines, one per line")
     p.add_argument("--ladder", action="store_true", help="1k then 10k then 100k + solver + xlsx")
     p.add_argument("--skip-tests", action="store_true")
     p.add_argument("--skip-solver", action="store_true")
@@ -107,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     _print_banner()
     cfg = load_config(args.config)
     print(f"Config: {cfg.get('_config_path')}")
-    print(f"Checkpoint day index: see bank.checkpoint_date={cfg['bank']['checkpoint_date']}")
+    print(f"Checkpoint: {cfg['bank']['checkpoint_date']}")
 
     inv = check_invariants(cfg, n=64, seed=int(cfg["simulation"]["seed"]))
     if inv:
@@ -116,6 +157,44 @@ def main(argv: list[str] | None = None) -> int:
             print("  -", msg)
         return 2
     print("Invariants: PASS (n=64)")
+
+    if args.live_input:
+        overlay_cfg = load_yaml(ROOT / args.live_input if not Path(args.live_input).is_absolute() else Path(args.live_input))
+        # live_input may `extends` or be a pure overlay
+        if overlay_cfg.get("extends"):
+            cfg = load_config(args.live_input)
+        else:
+            cfg = deep_merge(cfg, overlay_cfg)
+        print(f"Live input merged: {args.live_input}")
+    cfg = _apply_sets(cfg, args.sets)
+    if args.burn is not None:
+        cfg = set_path(cfg, "company.burn_monthly", float(args.burn))
+    if args.bridge is not None:
+        cfg = set_path(cfg, "company.bridge_capital", float(args.bridge))
+    if args.p_bank is not None:
+        cfg = set_path(cfg, "bank.approval_probability", float(args.p_bank))
+    if args.p_deal is not None:
+        cfg = set_path(cfg, "deal.close_probability", float(args.p_deal))
+    if args.cmin is not None:
+        cfg = set_path(cfg, "company.cash_minimum", float(args.cmin))
+    if args.worlds is not None:
+        cfg = set_path(cfg, "simulation.worlds", int(args.worlds))
+    if args.seed is not None:
+        cfg = set_path(cfg, "simulation.seed", int(args.seed))
+
+    live_events = collect_events(
+        cfg,
+        file=args.events,
+        url=args.events_url,
+        text=args.events_text,
+    )
+    if live_events:
+        cfg = apply_event_config_overrides(cfg, live_events)
+        print(f"Live events: {len(live_events)}  hash={payload_hash(live_events)}")
+        for ev in live_events:
+            print(f"  day={ev.day:3d}  {ev.category:11s}  {ev.mode:9s}  {ev.text[:80]}")
+    overlay = overlay_from_events(live_events, int(cfg["simulation"]["days"])) if live_events else None
+
 
     if not args.skip_tests:
         rc = _run_pytest()
@@ -130,7 +209,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.ladder:
         for n in (1000, 10000, 100000):
             t0 = time.perf_counter()
-            res = run_oracle(cfg, n_worlds=n, seed=args.seed)
+            res = run_oracle(
+                cfg,
+                n_worlds=n,
+                seed=args.seed,
+                overlay=overlay,
+                live_events=live_events,
+            )
             dt = time.perf_counter() - t0
             _print_metrics(f"{n:,} worlds", res)
             ladder_rows.append(
@@ -152,7 +237,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         n = int(args.worlds if args.worlds is not None else cfg["simulation"]["worlds"])
         t0 = time.perf_counter()
-        production = run_oracle(cfg, n_worlds=n, seed=args.seed)
+        production = run_oracle(
+            cfg,
+            n_worlds=n,
+            seed=args.seed,
+            overlay=overlay,
+            live_events=live_events,
+        )
         dt = time.perf_counter() - t0
         _print_metrics(f"{n:,} worlds", production)
         ladder_rows.append(
@@ -169,6 +260,15 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     assert production is not None
+    brief = build_briefing(production, None)
+    print("\n--- SITUATION BRIEFING ---")
+    print(brief["text"])
+    print("--------------------------")
+    generate_situation_charts(
+        production, None, ROOT / "outputs" / "charts", brief
+    )
+    write_briefing_markdown(brief, ROOT / "outputs" / "PIZDEC_BRIEFING.md")
+
     print("\nPolicy comparison (same worlds):")
     for name, m in production.metrics.items():
         print(

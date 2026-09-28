@@ -12,49 +12,33 @@ GPU **не используется**. `100,000 × 90` — это NumPy CPU за
 
 ## Google Colab — как запускать
 
-Локальный CPU для production-прогона не нужен. Делайте так.
+Репозиторий: https://github.com/MagistrTheOne/NULLXES-MAGA-ORACLE
+
+Локальный CPU для production-прогона не нужен.
 
 ### 1. Runtime
 
 `Runtime → Change runtime type → CPU`
 
-GPU (L4/T4) не ускоряет этот код и только тратит квоту.
+GPU (L4/T4) не ускоряет этот код.
 
-### 2. Установка
-
-Пока нет GitHub remote — загрузите ZIP в Colab.
-
-```python
-from google.colab import files
-import zipfile, os, shutil
-
-uploaded = files.upload()  # выберите NULLXES-MAGA-ORACLE.zip
-zip_name = next(iter(uploaded))
-extract_dir = "/content/NULLXES-MAGA-ORACLE"
-if os.path.exists(extract_dir):
-    shutil.rmtree(extract_dir)
-os.makedirs("/content/unpack", exist_ok=True)
-with zipfile.ZipFile(zip_name) as z:
-    z.extractall("/content/unpack")
-
-# zip может содержать корневую папку или файлы сразу
-import pathlib
-root_candidates = list(pathlib.Path("/content/unpack").glob("**/run.py"))
-assert root_candidates, "run.py not found in zip"
-src = root_candidates[0].parent
-shutil.move(str(src), extract_dir)
-%cd /content/NULLXES-MAGA-ORACLE
-!pip install -q -r requirements.txt
-```
-
-Когда появится GitHub:
+### 2. Clone (или откройте `NULLXES_COLAB.ipynb` с GitHub)
 
 ```python
 %cd /content
-!git clone https://github.com/<ORG>/<REPO>.git NULLXES-MAGA-ORACLE
+!git clone https://github.com/MagistrTheOne/NULLXES-MAGA-ORACLE.git
 %cd /content/NULLXES-MAGA-ORACLE
 !pip install -q -r requirements.txt
 ```
+
+Обновить уже склонированное:
+
+```python
+%cd /content/NULLXES-MAGA-ORACLE
+!git pull --ff-only origin main
+```
+
+Вводный инпут, live-события и графики с разбором ситуации — в `NULLXES_COLAB.ipynb` (ячейка `IN` / `LIVE_TEXT`).
 
 ### 3. Tests + invariants (обязательно до production)
 
@@ -149,8 +133,21 @@ NULLXES-MAGA-ORACLE/
 
 `500 RUB` — известное значение. Burn, вероятности deal/bank, P90, Pareto — **ASSUMPTION / PLACEHOLDER** в `configs/baseline.yaml` и каталоге `src/assumptions.py`.
 
+## Вводный инпут и live events
+
+```bash
+python run.py --live-input configs/live_input.yaml --worlds 1000 --skip-solver \
+  --burn 200000 --bridge 0 --p-bank 0.22 --p-deal 0.12 \
+  --events events/live.jsonl
+```
+
+Или точечно: `--set company.burn_monthly=50000`
+
+Новости: JSONL / paste / `--events-url`. Повтор с тем же `--seed` = common random numbers.
+
 ## GPU
 
-Не используется. Не усложняйте baseline CUDA/CuPy. Если когда-нибудь понадобится 1e7 worlds — это отдельный backend.
+Не используется.
 
-Пуш в GitHub — только после вашей команды с URL репозитория.
+Репозиторий: https://github.com/MagistrTheOne/NULLXES-MAGA-ORACLE
+

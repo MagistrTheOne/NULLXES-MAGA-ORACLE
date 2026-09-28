@@ -1,0 +1,31 @@
+# NULLXES live input overlay
+# Merge onto baseline:  python run.py --live-input configs/live_input.yaml
+# Это вводный инпут, который можно править перед каждым прогоном.
+# Все вероятности ниже — ASSUMPTION / PLACEHOLDER, не факты.
+
+simulation:
+  worlds: 1000
+  seed: 20260928
+  days: 90
+
+company:
+  cash_initial: 500.0
+  cash_minimum: 0.0
+  burn_monthly: 200000.0
+  bridge_capital: 0.0
+  discretionary_rd_share: 0.70
+
+bank:
+  approval_probability: 0.22
+
+deal:
+  close_probability: 0.12
+  target_capital: 30000000.0
+
+contract:
+  daily_inflow: 0.0
+
+live:
+  events_file: events/live.jsonl
+  events_url: null
+  events_text: ""

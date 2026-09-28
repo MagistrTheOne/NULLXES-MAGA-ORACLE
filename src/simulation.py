@@ -109,14 +109,16 @@ def make_streams(n: int, t_days: int, seed: int, k: int | None = None) -> Random
     )
 
 
-def simulate_bundle(cfg: Mapping, streams: RandomStreams) -> WorldBundle:
+def simulate_bundle(cfg: Mapping, streams: RandomStreams, overlay=None) -> WorldBundle:
     rho = float(cfg["contagion"]["rho"])
     sigma = float(cfg["contagion"]["sigma"])
     z = simulate_latent_z(streams.z_eps, rho, sigma)
     events, severity, lam = simulate_hazards(
-        cfg, streams.event_u, streams.severity_g, streams.pareto_u, z
+        cfg, streams.event_u, streams.severity_g, streams.pareto_u, z, overlay=overlay
     )
     shock = shock_loss_rub(cfg, events, severity)
+    if overlay is not None and getattr(overlay, "extra_loss", None) is not None:
+        shock = shock + overlay.extra_loss[None, :]
     deal = simulate_deal(
         cfg,
         events,
@@ -186,6 +188,8 @@ def run_oracle(
     policies: list[str] | None = None,
     streams: RandomStreams | None = None,
     bundle: WorldBundle | None = None,
+    overlay=None,
+    live_events: list | None = None,
 ) -> OracleResult:
     import time
 
@@ -198,7 +202,7 @@ def run_oracle(
     if streams is None:
         streams = make_streams(n, t_days, seed_i)
     if bundle is None:
-        bundle = simulate_bundle(cfg, streams)
+        bundle = simulate_bundle(cfg, streams, overlay=overlay)
 
     cash: dict[str, CashResult] = {}
     mets: dict[str, dict] = {}
@@ -224,6 +228,7 @@ def run_oracle(
         ai=ai,
         ai_summary=ai_sum,
         runtime_s=runtime,
+        extras={"live_events": list(live_events or [])},
     )
 
 

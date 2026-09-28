@@ -31,6 +31,7 @@ from assumptions import (
     flatten_leaves,
     parse_date,
 )
+from briefing import build_briefing, generate_situation_charts, write_briefing_markdown
 from simulation import OracleResult
 
 NAVY = "1B2A4A"
@@ -122,42 +123,10 @@ def _dates(cfg: Mapping) -> list[dt.date]:
 
 def _save_charts(result: OracleResult, escape: dict, sens_rows: list[dict], chart_dir: Path) -> dict[str, Path]:
     chart_dir.mkdir(parents=True, exist_ok=True)
-    paths: dict[str, Path] = {}
-    hold = result.cash["HOLD"]
-    days = np.arange(hold.cash.shape[1])
-    bands = result.metrics["HOLD"]["bands"]
-
-    fig, ax = plt.subplots(figsize=(10, 4.5))
-    ax.fill_between(days, bands["p5"], bands["p95"], color="#C4A35A", alpha=0.25, label="P5–P95")
-    ax.fill_between(days, bands["p25"], bands["p75"], color="#1B2A4A", alpha=0.20, label="P25–P75")
-    ax.plot(days, bands["p50"], color="#1B2A4A", lw=2, label="Median")
-    ax.axhline(float(result.cfg["company"]["cash_minimum"]), color="#8B1E1E", ls="--", lw=1, label="Cmin")
-    ax.set_title("Cash percentile bands (HOLD, RUB)")
-    ax.set_xlabel("Day")
-    ax.set_ylabel("Cash")
-    ax.legend(loc="upper right", fontsize=8)
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    p = chart_dir / "cash_bands.png"
-    fig.savefig(p, dpi=140)
-    plt.close(fig)
-    paths["cash_bands"] = p
-
-    fig, ax = plt.subplots(figsize=(8, 4))
-    names = list(result.metrics.keys())
-    surv = [result.metrics[n]["P(SURVIVAL)"] for n in names]
-    colors = ["#1B2A4A" if n != escape.get("best_policy_by_survival") else "#1F6B4A" for n in names]
-    ax.bar(names, surv, color=colors)
-    ax.set_ylim(0, 1)
-    ax.set_ylabel("P(SURVIVAL)")
-    ax.set_title("Survival by policy (common random numbers)")
-    ax.grid(True, axis="y", alpha=0.3)
-    fig.tight_layout()
-    p = chart_dir / "survival_policy.png"
-    fig.savefig(p, dpi=140)
-    plt.close(fig)
-    paths["survival_policy"] = p
-
+    brief = build_briefing(result, escape)
+    write_briefing_markdown(brief, chart_dir.parent / "PIZDEC_BRIEFING.md")
+    paths = generate_situation_charts(result, escape, chart_dir, brief)
+    # keep tornado from sensitivity if present
     if sens_rows:
         from sensitivity import tornado_table
 
@@ -169,53 +138,13 @@ def _save_charts(result: OracleResult, escape: dict, sens_rows: list[dict], char
         ax.barh(labels, deltas, color=cols)
         ax.axvline(0, color="#333", lw=1)
         ax.set_xlabel("Delta P(SURVIVAL) vs baseline")
-        ax.set_title("Sensitivity tornado (|delta| ranked)")
+        ax.set_title("Sensitivity tornado — какой рычаг двигает survival")
         fig.tight_layout()
         p = chart_dir / "sensitivity_tornado.png"
         fig.savefig(p, dpi=140)
         plt.close(fig)
         paths["sensitivity_tornado"] = p
-
-    ttfb = result.metrics["HOLD"]["ttfb"]["histogram"]
-    fig, ax = plt.subplots(figsize=(9, 4))
-    ax.bar(np.arange(len(ttfb)), ttfb, color="#8B1E1E")
-    ax.set_title("Time-to-first-breach histogram (HOLD)")
-    ax.set_xlabel("Day of first cash < Cmin")
-    ax.set_ylabel("Worlds")
-    fig.tight_layout()
-    p = chart_dir / "ttfb.png"
-    fig.savefig(p, dpi=140)
-    plt.close(fig)
-    paths["ttfb"] = p
-
-    c90 = result.metrics["HOLD"]["cash90"]
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.hist(c90, bins=40, color="#1B2A4A", alpha=0.85)
-    ax.axvline(np.median(c90), color="#C4A35A", lw=2, label="median")
-    ax.axvline(np.quantile(c90, 0.05), color="#8B1E1E", lw=2, ls="--", label="P5")
-    ax.set_title("C90 distribution (HOLD)")
-    ax.set_xlabel("Cash at day 90 (RUB)")
-    ax.legend(fontsize=8)
-    fig.tight_layout()
-    p = chart_dir / "c90.png"
-    fig.savefig(p, dpi=140)
-    plt.close(fig)
-    paths["c90"] = p
-
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(result.ai_summary["daily_p50"], color="#1B2A4A", label="AI median")
-    ax.plot(result.ai_summary["daily_p95"], color="#8B1E1E", label="AI P95")
-    ax.set_title("Absurdity Index over 90 days")
-    ax.set_xlabel("Day")
-    ax.set_ylabel("AI")
-    ax.set_ylim(0, 100)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    p = chart_dir / "ai_time.png"
-    fig.savefig(p, dpi=140)
-    plt.close(fig)
-    paths["ai_time"] = p
+    result.extras["briefing"] = brief
     return paths
 
 
@@ -267,6 +196,11 @@ def write_workbook(
         f"Seed={cfg['simulation']['seed']}  Config={cfg.get('meta', {}).get('name', 'baseline')}  "
         f"Runtime={result.runtime_s:.2f}s  GPU=NOT USED (NumPy CPU)"
     )
+    brief = (result.extras or {}).get("briefing") or {}
+    ws["A4"] = brief.get("verdict", "")
+    ws["A4"].alignment = Alignment(wrap_text=True, vertical="center")
+    ws.merge_cells("A4:L4")
+    ws.row_dimensions[4].height = 48
 
     kpis = [
         ("P(SURVIVAL)", _pct(hold["P(SURVIVAL)"]), GREEN),

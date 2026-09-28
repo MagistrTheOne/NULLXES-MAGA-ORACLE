@@ -1,0 +1,14 @@
+# NULLXES live events (JSONL). Lines starting with # are ignored.
+# Append one event per line, then re-run with the SAME seed.
+# Mapping headline → category is an ASSUMPTION lexicon, not a trained classifier.
+#
+# Modes:
+#   observed  — already happened: force that category event on that day (all worlds)
+#   risk_up   — raise intensity from that day through the horizon
+#   config    — only apply dotted config overrides
+#
+# {"ts":"2026-09-29","category":"GEO","mode":"observed","text":"payment compliance delay","p_boost":0.1,"loss_rub":0}
+# 2026-10-03 FIN банк запросил доп.документы, delay
+#
+# Free-text also works:
+# 2026-09-30 GEO санкционный комплаенс остановил платёж
