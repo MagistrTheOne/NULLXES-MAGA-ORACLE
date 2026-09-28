@@ -132,6 +132,8 @@ def check_numeric_fidelity(text: str, payload: Mapping, delta: Mapping | None = 
         return _check_sweep_fidelity(text, payload)
     if payload.get("experiment") == "frontier_sweep":
         return _check_frontier_fidelity(text, payload)
+    if payload.get("experiment") == "pizdec_heatmap":
+        return _check_pizdec_fidelity(text, payload)
     expected = authoritative_map(payload, delta)
     issues: list[str] = []
     for label, pat in _LABEL_PATTERNS:
@@ -218,6 +220,40 @@ def _check_frontier_fidelity(text: str, payload: Mapping) -> dict:
                 continue
             if not _prob_close(got, float(exp_h)):
                 issues.append(f"{name} HOLD P(SURVIVAL): quoted {m.group(1).strip()} != {exp_h}")
+    return {"ok": len(issues) == 0, "issues": issues, "checked_labels": checked}
+
+
+def _check_pizdec_fidelity(text: str, payload: Mapping) -> dict:
+    body = payload.get("pizdec_heatmap") or {}
+    issues: list[str] = []
+    checked: list[str] = []
+    exp_s = body.get("HOLD_P(SURVIVAL)")
+    if exp_s is not None:
+        checked.append("HOLD P(SURVIVAL)")
+        for m in re.finditer(
+            r"HOLD P\(\s*SURVIVAL\s*\)\s*[:=]\s*([+-]?\d[\d\s,.]*%?)",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            got = _parse_quoted(m.group(1))
+            if got is None:
+                continue
+            if not _prob_close(got, float(exp_s)):
+                issues.append(f"HOLD P(SURVIVAL): quoted {m.group(1).strip()} != {exp_s}")
+    for w in body.get("weeks") or []:
+        name = w.get("id") or ""
+        exp = (w.get("P(EVENT)") or {}).get("FIN")
+        if exp is None:
+            continue
+        label = f"{name} FIN"
+        checked.append(label)
+        pat = rf"{re.escape(name)}_FIN:\s*([+-]?\d[\d.]*)"
+        for m in re.finditer(pat, text):
+            got = _parse_quoted(m.group(1))
+            if got is None:
+                continue
+            if not _prob_close(got, float(exp)):
+                issues.append(f"{label}: quoted {m.group(1).strip()} != {exp}")
     return {"ok": len(issues) == 0, "issues": issues, "checked_labels": checked}
 
 

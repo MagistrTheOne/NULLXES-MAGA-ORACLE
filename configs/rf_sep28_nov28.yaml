@@ -1,0 +1,59 @@
+# NULLXES window 2026-09-28 → 2026-11-28
+# Priors moved vs baseline from PUBLIC prints (CBR / Minfin / TASS / CBR press).
+# Mapping public print → hazard knob = ASSUMPTION / PLACEHOLDER, not an estimated frequency.
+# This is NOT a forecast of the Russian Federation.
+
+extends: baseline.yaml
+
+meta:
+  name: rf_sep28_nov28
+  model_date: "2026-09-28"
+  window_end: "2026-11-28"
+  notes: >
+    Public inputs (not MC): NWF liquid 4.0T RUB / $46.7B / 1.7% GDP as of 2026-09-01
+    (Minfin via TASS 2026-09-07). CBR key rate 14.00% held 2026-09-11. CPI Aug 6.3% YoY.
+    International reserves $748.2B as of 2026-09-18. USD/RUB 84.34 on 2026-09-26.
+    Next CBR meeting 2026-10-23. Bank checkpoint still 2026-10-26.
+
+simulation:
+  days: 62
+  start_date: "2026-09-28"
+  shock_severity_multiplier: 1.35   # ASSUMPTION / PLACEHOLDER
+
+bank:
+  approval_probability: 0.14        # ASSUMPTION: 14% key + non-price tightness (CBR 11.09)
+  reduced_limit_probability: 0.48
+  fin_stress_approval_decay: 0.24
+  financing_cost:
+    annual_rate: 0.32               # ASSUMPTION: key 14% + DeepTech spread
+
+deal:
+  close_probability: 0.08           # ASSUMPTION / PLACEHOLDER
+  sanctions_block_probability: 0.18 # ASSUMPTION: secondary-tariff / compliance path
+  geo_delay_probability: 0.48
+  geo_fail_probability: 0.14
+
+hazards:
+  SEC:
+    p90: 0.26                       # ASSUMPTION: infra / energy disruption channel
+    severity_median: 0.42
+  FIN:
+    p90: 0.34                       # ASSUMPTION: 14% rate, budget hole, thin NWF liquid
+    severity_median: 0.40
+  MACRO:
+    p90: 0.38                       # ASSUMPTION: Urals swing, fuel, CPI 6.3%
+    severity_median: 0.38
+  GEO:
+    p90: 0.28                       # ASSUMPTION: secondary energy tariffs / payments
+    severity_median: 0.50
+  BIZ:
+    p90: 0.30
+    severity_median: 0.36
+  BLACK_SWAN:
+    p_daily: 0.0028                 # ASSUMPTION / PLACEHOLDER — not a predicted tail rate
+
+macro_pass_through:
+  burn_kappa: 0.07                  # ASSUMPTION: fuel/CPI pass-through into burn
+
+live:
+  events_file: events/rf_sep2026.jsonl

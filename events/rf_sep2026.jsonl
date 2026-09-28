@@ -1,0 +1,13 @@
+# Last-month PUBLIC prints → remaining-horizon intensity. ASSUMPTION lexicon.
+# mode=risk_up raises lambda from that day through 28.11. Not a news classifier with known accuracy.
+# Dates in the past relative to 2026-09-28 are clipped to day 0.
+
+{"ts":"2026-09-01","category":"MACRO","mode":"risk_up","lambda_add":0.06,"p_boost":0.02,"text":"NWF liquid 4.0T RUB / $46.7B / 1.7% GDP as of 2026-09-01 (Minfin via TASS 2026-09-07). Total NWF 13.19T RUB / $154.1B / 5.6% GDP."}
+{"ts":"2026-09-11","category":"FIN","mode":"risk_up","lambda_add":0.07,"p_boost":0.03,"text":"CBR held key rate 14.00% on 2026-09-11. Non-price lending conditions still tight. CPI ~6.3% as of 2026-09-07. Next meeting 2026-10-23."}
+{"ts":"2026-09-18","category":"MACRO","mode":"risk_up","lambda_add":0.04,"p_boost":0.02,"text":"CBR international reserves $748.2B as of 2026-09-18 (weekly -10B, mostly revaluation). USD/RUB 84.34 on 2026-09-26."}
+{"ts":"2026-09-18","category":"GEO","mode":"risk_up","lambda_add":0.08,"p_boost":0.03,"text":"US Lindsey Graham Act: tariffs up to 100% on Russia's five largest energy buyers. ASSUMPTION: raises sanctions/payments intensity for a DeepTech deal path."}
+{"ts":"2026-09-24","category":"MACRO","mode":"risk_up","lambda_add":0.07,"p_boost":0.03,"text":"Urals ~$107/bbl on 2026-09-24 after >$110–120 mid-September. 2026 budget cutoff $59; 2027 planned $50. August net oil-budget 326.2B RUB eight-month low (price timing + refiner subsidies)."}
+{"ts":"2026-09-24","category":"SEC","mode":"risk_up","lambda_add":0.05,"p_boost":0.02,"text":"Refinery/energy infrastructure hits reported ~1 mb/d processing disruption; fuel is in CBR inflation narrative."}
+{"ts":"2026-09-28","category":"FIN","mode":"risk_up","lambda_add":0.04,"p_boost":0.02,"text":"CBR 2026-09-28: banking sector liquidity indicator 3077.1B RUB; deposits at CBR 3922.6B; correspondent accounts 5682.8B. Credit tightness is rate/non-price, not empty banks."}
+{"ts":"2026-10-23","category":"FIN","mode":"risk_up","lambda_add":0.06,"p_boost":0.03,"text":"Scheduled CBR key-rate meeting 2026-10-23 (calendar, not a predicted hike)."}
+{"ts":"2026-10-26","category":"FIN","mode":"risk_up","lambda_add":0.05,"p_boost":0.02,"text":"NULLXES bank checkpoint 2026-10-26 — calendar date already in config; overlay marks the cluster on the heatmap."}

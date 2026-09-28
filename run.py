@@ -151,8 +151,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--delta-json", default=None, help="Optional other analysis_payload.json for delta")
     p.add_argument("--cash-sweep", action="store_true", help="Cash0 grid on CRN; only cash_initial changes")
     p.add_argument("--frontier-sweep", action="store_true", help="Cash0 × Burn survival frontier on CRN")
+    p.add_argument(
+        "--pizdec-heatmap",
+        action="store_true",
+        help="RF-updated 28.09–28.11 pizdec heatmap (calendar × category / AI)",
+    )
     p.add_argument("--out", default="outputs/NULLXES_90D_ORACLE.xlsx")
     args = p.parse_args(argv)
+    if args.pizdec_heatmap and args.config in {"configs/baseline.yaml", "baseline.yaml"}:
+        args.config = "configs/rf_sep28_nov28.yaml"
 
     _print_banner()
     cfg = load_config(args.config)
@@ -292,6 +299,57 @@ def main(argv: list[str] | None = None) -> int:
             max_new_tokens=tokens,
         )
         qpath = ROOT / "outputs" / "FRONTIER_SWEEP_QWEN.md"
+        qpath.write_text(analyst["text"] + "\n", encoding="utf-8")
+        (ROOT / "outputs" / "QWEN_BRIEFING.md").write_text(analyst["text"] + "\n", encoding="utf-8")
+        print(f"\n--- ANALYST ({analyst['backend']} / {analyst['mode']}) ---")
+        print(analyst["text"])
+        print(f"Wrote {arts['brief_path']} and {qpath}")
+        print(
+            f"fidelity={'OK' if analyst['fidelity']['ok'] else 'FAIL'}  "
+            f"hf_token={analyst['hf_token']}"
+        )
+        print("\n" + DISCLAIMER)
+        return 0
+
+    if args.pizdec_heatmap:
+        from pizdec_heatmap import run_pizdec_heatmap, write_pizdec_outputs
+
+        n = int(args.worlds if args.worlds is not None else cfg["simulation"]["worlds"])
+        print(
+            f"\nPizdec heatmap  {cfg['simulation']['start_date']} → "
+            f"{(cfg.get('meta') or {}).get('window_end')}  worlds={n}  "
+            f"seed={cfg['simulation']['seed']}  days={cfg['simulation']['days']}"
+        )
+        cal = run_pizdec_heatmap(
+            cfg,
+            n_worlds=n,
+            seed=int(cfg["simulation"]["seed"]),
+            events_file=args.events,
+        )
+        arts = write_pizdec_outputs(cal, ROOT, mode=args.analyst_mode)
+        hw = cal["hottest_week"]
+        print(
+            f"  hottest={hw['id']} {hw['lo']}..{hw['hi']}  "
+            f"pizdec_index={hw['pizdec_index']:.1f}  P(AI>=80)={hw['P(AI>=80)']:.1%}"
+        )
+        for w in cal["weeks"]:
+            print(
+                f"  {w['id']:3s} {w['lo']}..{w['hi']}  "
+                f"AI_p95={w['AI_P95']:.0f}  P(AI>=40)={w['P(AI>=40)']:.1%}  "
+                f"FIN={w['P(EVENT)']['FIN']:.1%} MACRO={w['P(EVENT)']['MACRO']:.1%} "
+                f"GEO={w['P(EVENT)']['GEO']:.1%}"
+            )
+        print("Charts:", {k: str(v) for k, v in arts["charts"].items()})
+        print("Snapshot:", arts["snapshot"])
+        tokens = 1400 if args.analyst_backend.lower() in {"qwen", "transformers", "hf"} else 700
+        analyst = generate_briefing(
+            arts["payload"],
+            mode=args.analyst_mode,
+            backend=args.analyst_backend,
+            model_id=args.analyst_model,
+            max_new_tokens=tokens,
+        )
+        qpath = ROOT / "outputs" / "PIZDEC_HEATMAP_QWEN.md"
         qpath.write_text(analyst["text"] + "\n", encoding="utf-8")
         (ROOT / "outputs" / "QWEN_BRIEFING.md").write_text(analyst["text"] + "\n", encoding="utf-8")
         print(f"\n--- ANALYST ({analyst['backend']} / {analyst['mode']}) ---")

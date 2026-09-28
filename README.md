@@ -205,6 +205,17 @@ python scripts/run_frontier_sweep.py --from-payload outputs/simulations/frontier
 
 Heatmaps: `outputs/charts/frontier_best_survival.png`, `frontier_hold_survival.png`, `frontier_bridge_80.png`.
 
+## Pizdec heatmap — 28.09.2026 → 28.11.2026
+
+Публичные цифры ЦБ/Минфина за последний месяц мапятся в ASSUMPTION-кнопки + `events/rf_sep2026.jsonl`. Monte Carlo считает календарь P(event) и Absurdity Index. Это не прогноз РФ.
+
+```bash
+python run.py --pizdec-heatmap --worlds 1000 --skip-tests --analyst-backend facts
+python scripts/run_pizdec_heatmap.py --from-payload outputs/simulations/pizdec_heatmap_payload.json --analyst-backend qwen
+```
+
+Графики: `pizdec_weekly.png`, `pizdec_daily.png`, `pizdec_ai_bands.png`, `pizdec_ai_calendar.png`, `pizdec_index_weeks.png`.
+
 ## GPU
 
 Monte Carlo GPU не использует. Qwen на Colab — только если вы сами включите transformers.

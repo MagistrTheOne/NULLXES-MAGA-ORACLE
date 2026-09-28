@@ -64,6 +64,22 @@ CLIFF строки копируй дословно.
 """
 )
 
+SYSTEM_PIZDEC = (
+    SYSTEM_SHARED
+    + """
+Режим PIZDEC HEATMAP: календарь 28.09–28.11. Числа только из AUTHORITATIVE FACTS.
+
+Ответь:
+1. HOTTEST_WEEK — копируй id, даты, pizdec_index, P(AI>=80).
+2. По неделям: где выше P(EVENT) FIN / MACRO / GEO. Не усредняй соседние недели.
+3. Checkpoint и CBR_MEETING только как даты из FACTS, без выдуманного решения ставки.
+4. HOLD vs BEST. Если Cash0 в модели 500 — это арифметика кассы NULLXES, не ВВП РФ.
+5. PUBLIC_INPUTS (NWF, резервы, KEY_RATE) не переводи в P(SURVIVAL).
+
+Не интерполируй. Пропуск = «данных недостаточно».
+"""
+)
+
 SYSTEM_FRONTIER = (
     SYSTEM_SHARED
     + """
@@ -117,6 +133,11 @@ def build_messages(
 
         system = SYSTEM_FRONTIER
         user = authoritative_frontier_block(frontier_view_from_payload(payload))
+    elif payload.get("experiment") == "pizdec_heatmap":
+        from pizdec_heatmap import authoritative_pizdec_block, pizdec_view_from_payload
+
+        system = SYSTEM_PIZDEC
+        user = authoritative_pizdec_block(pizdec_view_from_payload(payload))
     else:
         system = SYSTEM_MAGA if mode == "maga" else SYSTEM_BOARD
         user = facts_block(payload, delta)
@@ -144,7 +165,7 @@ def generate_briefing(
 ) -> dict:
     mode = "maga" if mode == "maga" else "board"
     backend = (backend or "facts").lower()
-    if payload.get("experiment") in {"cash_sweep", "frontier_sweep"} and max_new_tokens <= 700:
+    if payload.get("experiment") in {"cash_sweep", "frontier_sweep", "pizdec_heatmap"} and max_new_tokens <= 700:
         max_new_tokens = 1400
     if backend in _FACTS_BACKENDS:
         if payload.get("experiment") == "cash_sweep":
@@ -155,6 +176,10 @@ def generate_briefing(
             from frontier_sweep import frontier_presenter, frontier_view_from_payload
 
             text = frontier_presenter(frontier_view_from_payload(payload), mode=mode)
+        elif payload.get("experiment") == "pizdec_heatmap":
+            from pizdec_heatmap import pizdec_presenter, pizdec_view_from_payload
+
+            text = pizdec_presenter(pizdec_view_from_payload(payload), mode=mode)
         else:
             text = present_without_llm(payload, mode=mode, delta=delta)
         rail = check_numeric_fidelity(text, payload, delta)
