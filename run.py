@@ -31,6 +31,8 @@ from live_events import (  # noqa: E402
     overlay_from_events,
     payload_hash,
 )
+from payload import build_analysis_payload, write_json  # noqa: E402
+from qwen_analyst import generate_briefing  # noqa: E402
 from sensitivity import run_sensitivity, tornado_table  # noqa: E402
 from simulation import check_invariants, run_oracle  # noqa: E402
 
@@ -142,6 +144,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--skip-tests", action="store_true")
     p.add_argument("--skip-solver", action="store_true")
     p.add_argument("--skip-excel", action="store_true")
+    p.add_argument("--policy-view", default="HOLD", help="Primary policy in analysis_payload.json")
+    p.add_argument("--analyst-backend", default="facts", help="facts | transformers | openai")
+    p.add_argument("--analyst-mode", default="maga", help="board | maga")
+    p.add_argument("--analyst-model", default="Qwen/Qwen3-1.7B")
+    p.add_argument("--delta-json", default=None, help="Optional other analysis_payload.json for delta")
     p.add_argument("--out", default="outputs/NULLXES_90D_ORACLE.xlsx")
     args = p.parse_args(argv)
 
@@ -353,6 +360,40 @@ def main(argv: list[str] | None = None) -> int:
     }
     summary_path.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
     print(f"Summary JSON: {summary_path}")
+
+    payload = build_analysis_payload(
+        cfg,
+        production,
+        escape,
+        sens_rows,
+        policy=args.policy_view,
+        scenario=(cfg.get("meta") or {}).get("name"),
+    )
+    payload_path = ROOT / "outputs" / "simulations" / "analysis_payload.json"
+    write_json(payload, payload_path)
+    print(f"Analyst payload: {payload_path}")
+
+    delta = None
+    if args.delta_json:
+        from payload import build_delta_payload
+
+        other = json.loads(Path(args.delta_json).read_text(encoding="utf-8"))
+        delta = build_delta_payload(other, payload)
+        write_json(delta, ROOT / "outputs" / "simulations" / "delta_payload.json")
+        print("Delta payload written (other → current)")
+
+    analyst = generate_briefing(
+        payload,
+        mode=args.analyst_mode,
+        delta=delta,
+        backend=args.analyst_backend,
+        model_id=args.analyst_model,
+    )
+    brief_path = ROOT / "outputs" / "QWEN_BRIEFING.md"
+    brief_path.write_text(analyst["text"] + "\n", encoding="utf-8")
+    print(f"\n--- ANALYST ({analyst['backend']} / {analyst['mode']}) ---")
+    print(analyst["text"])
+    print(f"Wrote {brief_path}")
     print("\n" + DISCLAIMER)
     return 0
 

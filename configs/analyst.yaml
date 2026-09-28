@@ -1,0 +1,20 @@
+# Analyst layer — models are loaded ONLY in Colab when you opt in.
+# Default run.py backend is facts (no weight download).
+
+default_model: Qwen/Qwen3-1.7B
+poc_model: Qwen/Qwen3-0.6B
+strong_model: Qwen/Qwen3-4B-Instruct-2507
+fallback_instruct: Qwen/Qwen2.5-1.5B-Instruct
+
+# Qwen3-1.7B is post-trained. There is NO official Qwen/Qwen3-1.7B-Instruct id.
+# Use enable_thinking=False for deterministic briefing (non-thinking mode).
+
+decoding:
+  do_sample: false
+  temperature: 0.0
+  max_new_tokens: 700
+  enable_thinking: false
+
+modes:
+  - board
+  - maga

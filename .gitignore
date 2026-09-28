@@ -8,6 +8,7 @@ outputs/charts/*.png
 outputs/simulations/*.json
 outputs/*.xlsx
 outputs/PIZDEC_BRIEFING.md
+outputs/QWEN_BRIEFING.md
 .DS_Store
 *.zip
 NULLXES-MAGA-ORACLE.zip

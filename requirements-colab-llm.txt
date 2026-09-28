@@ -1,0 +1,6 @@
+# Optional. Do NOT install on the Windows workstation for production MC.
+# Colab only, after you connect HF / GPU if you want Qwen weights.
+transformers>=4.51.0
+accelerate>=0.33.0
+huggingface_hub>=0.24.0
+gradio>=4.44.0

@@ -145,9 +145,35 @@ python run.py --live-input configs/live_input.yaml --worlds 1000 --skip-solver \
 
 Новости: JSONL / paste / `--events-url`. Повтор с тем же `--seed` = common random numbers.
 
+## Два слоя: Monte Carlo + analyst
+
+```
+USER INPUT → config/UI → Monte Carlo → analysis_payload.json
+                → rule-based FACTS → Qwen (optional) → briefing
+```
+
+Qwen **не считает** survival. Default `--analyst-backend facts` (веса не качаются).
+
+Hub IDs (Colab opt-in, не локально):
+
+- `Qwen/Qwen3-1.7B` — старт (post-trained, `enable_thinking=False`)
+- `Qwen/Qwen3-0.6B` — PoC
+- `Qwen/Qwen3-4B-Instruct-2507` — тяжелее
+- `Qwen/Qwen2.5-1.5B-Instruct` — запасной instruct
+
+Официального `Qwen/Qwen3-1.7B-Instruct` нет.
+
+```bash
+python run.py --worlds 1000 --skip-solver --analyst-backend facts --analyst-mode maga
+python app_gradio.py
+```
+
+`--delta-json other_payload.json` — сравнение сценариев без выдуманных вероятностей.
+
 ## GPU
 
-Не используется.
+Monte Carlo GPU не использует. Qwen на Colab — только если вы сами включите transformers.
 
 Репозиторий: https://github.com/MagistrTheOne/NULLXES-MAGA-ORACLE
+
 
