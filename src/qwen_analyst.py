@@ -46,6 +46,24 @@ SYSTEM_BOARD = (
 """
 )
 
+SYSTEM_SWEEP = (
+    SYSTEM_SHARED
+    + """
+Режим CASH SWEEP: человеческий тон, числа только из AUTHORITATIVE FACTS.
+
+Ответь на 5 пунктов:
+1. Первый Cash0 на сетке, где P(SURVIVAL) материально растёт (cliff survival≥5%).
+2. Первый Cash0, где P(CASH BREACH) < 50%.
+3. Первый Cash0, где обычно доходят до bank checkpoint без inflow.
+4. Первый Cash0, где финансирование перестаёт быть единственным условием выживания.
+5. Что арифметика runway, а что interaction со shocks и timing deal/bank.
+
+P(DEAL CLOSE), P(BANK APPROVAL), AI не меняются с Cash0. Если в FACTS они одинаковые — так и скажи.
+Не интерполируй между точками. Пропуск = «данных недостаточно».
+CLIFF строки копируй дословно.
+"""
+)
+
 SYSTEM_MAGA = (
     SYSTEM_SHARED
     + """
@@ -73,8 +91,14 @@ def build_messages(
     mode: str = "board",
     delta: Mapping | None = None,
 ) -> list[dict[str, str]]:
-    system = SYSTEM_MAGA if mode == "maga" else SYSTEM_BOARD
-    user = facts_block(payload, delta)
+    if payload.get("experiment") == "cash_sweep":
+        from cash_sweep import authoritative_sweep_block, sweep_view_from_payload
+
+        system = SYSTEM_SWEEP
+        user = authoritative_sweep_block(sweep_view_from_payload(payload))
+    else:
+        system = SYSTEM_MAGA if mode == "maga" else SYSTEM_BOARD
+        user = facts_block(payload, delta)
     user += "\n\nJSON (context only; if it conflicts with AUTHORITATIVE FACTS, FACTS win)\n"
     user += json.dumps(payload, ensure_ascii=False, default=str)
     if delta:
@@ -99,8 +123,15 @@ def generate_briefing(
 ) -> dict:
     mode = "maga" if mode == "maga" else "board"
     backend = (backend or "facts").lower()
+    if payload.get("experiment") == "cash_sweep" and max_new_tokens <= 700:
+        max_new_tokens = 1400
     if backend in _FACTS_BACKENDS:
-        text = present_without_llm(payload, mode=mode, delta=delta)
+        if payload.get("experiment") == "cash_sweep":
+            from cash_sweep import sweep_presenter, sweep_view_from_payload
+
+            text = sweep_presenter(sweep_view_from_payload(payload), mode=mode)
+        else:
+            text = present_without_llm(payload, mode=mode, delta=delta)
         rail = check_numeric_fidelity(text, payload, delta)
         text = attach_fidelity_footer(text, rail)
         return {

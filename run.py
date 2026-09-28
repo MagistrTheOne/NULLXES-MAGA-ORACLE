@@ -149,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--analyst-mode", default="maga", help="board | maga")
     p.add_argument("--analyst-model", default="Qwen/Qwen3-1.7B")
     p.add_argument("--delta-json", default=None, help="Optional other analysis_payload.json for delta")
+    p.add_argument("--cash-sweep", action="store_true", help="Cash0 grid on CRN; only cash_initial changes")
     p.add_argument("--out", default="outputs/NULLXES_90D_ORACLE.xlsx")
     args = p.parse_args(argv)
 
@@ -209,6 +210,50 @@ def main(argv: list[str] | None = None) -> int:
             print(f"pytest failed with code {rc}")
             return rc
         print("pytest: PASS")
+
+    if args.cash_sweep:
+        from cash_sweep import run_cash_sweep, write_sweep_outputs
+
+        n = int(args.worlds if args.worlds is not None else cfg["simulation"]["worlds"])
+        print(f"\nCash0 sweep on CRN  worlds={n}  seed={cfg['simulation']['seed']}")
+        sweep = run_cash_sweep(
+            cfg,
+            n_worlds=n,
+            seed=int(cfg["simulation"]["seed"]),
+            overlay=overlay,
+            live_events=live_events,
+        )
+        arts = write_sweep_outputs(sweep, ROOT, mode=args.analyst_mode)
+        for r in sweep["rows"]:
+            print(
+                f"  {r['name']:10s}  Cash0={r['cash_initial']:>12,.0f}  "
+                f"P(SURVIVAL)={r['P(SURVIVAL)']:.2%}  "
+                f"P(BREACH)={r['P(CASH BREACH)']:.2%}  "
+                f"runway={r['arithmetic_runway_days']:.2f}d  "
+                f"best={r['best_policy_by_survival']}"
+            )
+        print("Cliffs:", json.dumps(sweep["cliffs"], ensure_ascii=False, default=str))
+        print("Charts:", {k: str(v) for k, v in arts["charts"].items()})
+        tokens = 1400 if args.analyst_backend.lower() in {"qwen", "transformers", "hf"} else 700
+        analyst = generate_briefing(
+            arts["payload"],
+            mode=args.analyst_mode,
+            backend=args.analyst_backend,
+            model_id=args.analyst_model,
+            max_new_tokens=tokens,
+        )
+        qpath = ROOT / "outputs" / "CASH_SWEEP_QWEN.md"
+        qpath.write_text(analyst["text"] + "\n", encoding="utf-8")
+        (ROOT / "outputs" / "QWEN_BRIEFING.md").write_text(analyst["text"] + "\n", encoding="utf-8")
+        print(f"\n--- ANALYST ({analyst['backend']} / {analyst['mode']}) ---")
+        print(analyst["text"])
+        print(f"Wrote {arts['brief_path']} and {qpath}")
+        print(
+            f"fidelity={'OK' if analyst['fidelity']['ok'] else 'FAIL'}  "
+            f"hf_token={analyst['hf_token']}"
+        )
+        print("\n" + DISCLAIMER)
+        return 0
 
     ladder_rows: list[dict] = []
     production = None

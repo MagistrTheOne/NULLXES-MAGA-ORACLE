@@ -9,6 +9,8 @@ outputs/simulations/*.json
 outputs/*.xlsx
 outputs/PIZDEC_BRIEFING.md
 outputs/QWEN_BRIEFING.md
+outputs/CASH_SWEEP_BRIEFING.md
+outputs/CASH_SWEEP_QWEN.md
 .env
 .env.*
 .huggingface/

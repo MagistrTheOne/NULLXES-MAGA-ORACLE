@@ -181,6 +181,19 @@ python scripts/compare_qwen_models.py --payload outputs/simulations/analysis_pay
 
 `--delta-json other_payload.json` — сравнение сценариев без выдуманных вероятностей.
 
+## Cash0 geometry sweep
+
+Один seed, одни и те же случайные миры, меняется **только** `company.cash_initial`.
+
+```bash
+python run.py --cash-sweep --worlds 1000 --skip-tests --analyst-backend facts
+python scripts/run_cash_sweep.py --worlds 1000 --analyst-backend qwen
+```
+
+Клиффы (первый уровень сетки, где выполнен порог) считает Python. Qwen их не выдумывает.
+
+Графики: `outputs/charts/cash0_survival.png`, `outputs/charts/cash0_breach.png`.
+
 ## GPU
 
 Monte Carlo GPU не использует. Qwen на Colab — только если вы сами включите transformers.

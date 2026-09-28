@@ -128,6 +128,8 @@ _LABEL_PATTERNS: tuple[tuple[str, str], ...] = (
 
 def check_numeric_fidelity(text: str, payload: Mapping, delta: Mapping | None = None) -> dict:
     """If the briefing quotes a labeled metric, it must match Monte Carlo."""
+    if payload.get("experiment") == "cash_sweep":
+        return _check_sweep_fidelity(text, payload)
     expected = authoritative_map(payload, delta)
     issues: list[str] = []
     for label, pat in _LABEL_PATTERNS:
@@ -149,6 +151,40 @@ def check_numeric_fidelity(text: str, payload: Mapping, delta: Mapping | None = 
         "issues": issues,
         "checked_labels": [a[0] for a in _LABEL_PATTERNS],
     }
+
+
+def _check_sweep_fidelity(text: str, payload: Mapping) -> dict:
+    rows = ((payload.get("cash_sweep") or {}).get("rows")) or []
+    issues: list[str] = []
+    checked: list[str] = []
+    for row in rows:
+        name = row.get("name") or ""
+        exp = row.get("P(SURVIVAL)")
+        if exp is None:
+            continue
+        label = f"{name} P(SURVIVAL)"
+        checked.append(label)
+        pat = rf"{re.escape(name)}[\s\S]{{0,80}}P\(\s*SURVIVAL\s*\)\s*[:=]\s*([+-]?\d[\d\s,.]*%?)"
+        for m in re.finditer(pat, text, flags=re.IGNORECASE):
+            got = _parse_quoted(m.group(1))
+            if got is None:
+                continue
+            if not _prob_close(got, float(exp)):
+                issues.append(f"{label}: quoted {m.group(1).strip()} != authoritative {exp}")
+        exp_b = row.get("P(CASH BREACH)")
+        if exp_b is None:
+            continue
+        checked.append(f"{name} P(CASH BREACH)")
+        pat_b = rf"{re.escape(name)}[\s\S]{{0,220}}P\(\s*CASH\s*BREACH\s*\)\s*[:=]\s*([+-]?\d[\d\s,.]*%?)"
+        for m in re.finditer(pat_b, text, flags=re.IGNORECASE):
+            got = _parse_quoted(m.group(1))
+            if got is None:
+                continue
+            if not _prob_close(got, float(exp_b)):
+                issues.append(
+                    f"{name} P(CASH BREACH): quoted {m.group(1).strip()} != {exp_b}"
+                )
+    return {"ok": len(issues) == 0, "issues": issues, "checked_labels": checked}
 
 
 def attach_fidelity_footer(text: str, rail: Mapping) -> str:
